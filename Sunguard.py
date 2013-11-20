@@ -22,84 +22,87 @@ class Robot:
     """
     def act(self, game):
         if "spawn" in rg.loc_types(self.location):
-            return sanitize(['move', rg.toward(self.location, rg.CENTER_POINT)])
-        else:
-            adjacent_enemies = []
-            for loc, bot in game.get('robots').items():
-                if bot.get('player_id') != self.player_id:
-                    if rg.dist(loc, self.location) <= 1:
-                        allies = 0
-                        #Find out how many allies are around this enemy
-                        for nloc, nbot in game.get('robots').items():
-                            if bot.get("player_id") == self.player_id and rg.dist(loc, nloc) <=1:
-                                allies = allies + 1
-                        adjacent_enemies.append([loc, bot, allies])
-                else:
-                    if "spawn" in rg.loc_types(bot.get("location")): #The friendly wants to get out of spawn, make way for it
-                        r = Robot.move(self, game)
-                        if r and rg.toward(bot.get("location"), rg.CENTER_POINT) == r[1]:
-                                return sanitize(['move', rg.toward(self.location, rg.CENTER_POINT)])
-            if adjacent_enemies and self.hp >= CRITICAL_HP:
-                if len(adjacent_enemies) * ATTACK_DAMAGE > self.hp: # They can kill me! lets flee!
-                    return sanitize(self.flee(game))
-                adjacent_enemies.sort(key= lambda x: (x[2], x[1].get("hp")))
-                return sanitize(['attack', adjacent_enemies[0][0]])
-            elif adjacent_enemies and self.hp <= CRITICAL_HP:
-                return sanitize(self.flee(game))
-            else:
-                r = Robot.move(self, game)
-                
-                #Check if allied damaged bots will move to our destination, and if so, let them
-                move = True
-                for loc, bot in game.get('robots').items():
-                    if bot.get("player_id") == self.player_id and not bot.location == self.location:
-                        if rg.dist(loc, r[1]) <= 1:
-                            if Robot.get_destination(bot, game) == r[1]: #our destination matches, let them come
-                                if bot.get("hp") < CRITICAL_HP:
-                                    print "Bot beneath crtitical so guard"
-                                    return ["guard"]
-                                else: # Figure out who should be given highest movement priority (based on which one is furthest from middle, or who has lowest hp in tiebreaker)
-                                    prio = rg.dist(self.location, rg.CENTER_POINT)
-                                    prio_o = rg.dist(bot.location, rg.CENTER_POINT)
+            s = sanitize(['move', rg.toward(self.location, rg.CENTER_POINT)])
+            return s
 
-                                    if prio == prio_o: #Tie
-                                        if self.hp >= bot.hp:
-                                            move = True
-                                        else:
-                                            move = False
-                                    elif prio > prio_o:
+        adjacent_enemies = []
+        for loc, bot in game.get('robots').items():
+            if bot.get('player_id') != self.player_id:
+                if rg.dist(loc, self.location) <= 1:
+                    allies = 0
+                    #Find out how many allies are around this enemy
+                    for nloc, nbot in game.get('robots').items():
+                        if bot.get("player_id") == self.player_id and rg.dist(loc, nloc) <=1:
+                            allies = allies + 1
+                    adjacent_enemies.append([loc, bot, allies])
+            else:
+                if "spawn" in rg.loc_types(bot.get("location")): #The friendly wants to get out of spawn, make way for it
+                    r = Robot.move(self, game)
+                    if r and rg.toward(bot.get("location"), rg.CENTER_POINT) == r[1]:
+                            return sanitize(['move', rg.toward(self.location, rg.CENTER_POINT)])
+        if adjacent_enemies and self.hp >= CRITICAL_HP:
+            if len(adjacent_enemies) * ATTACK_DAMAGE > self.hp: # They can kill me! lets flee!
+                return sanitize(self.flee(game))
+            adjacent_enemies.sort(key= lambda x: (x[2], x[1].get("hp")))
+            return sanitize(['attack', adjacent_enemies[0][0]])
+        elif adjacent_enemies and self.hp <= CRITICAL_HP:
+            return sanitize(self.flee(game))
+        else:
+            r = Robot.move(self, game)
+
+            if not r:
+                return ["guard"]
+            
+            #Check if allied damaged bots will move to our destination, and if so, let them
+            move = True
+            for loc, bot in game.get('robots').items():
+                if bot.get("player_id") == self.player_id and not bot.location == self.location:
+                    if rg.dist(loc, r[1]) <= 1:
+                        if Robot.get_destination(bot, game) == r[1]: #our destination matches, let them come
+                            if bot.get("hp") < CRITICAL_HP:
+                                return ["guard"]
+                            else: # Figure out who should be given highest movement priority (based on which one is furthest from middle, or who has lowest hp in tiebreaker)
+                                prio = rg.dist(self.location, rg.CENTER_POINT)
+                                prio_o = rg.dist(bot.location, rg.CENTER_POINT)
+
+                                if prio == prio_o: #Tie
+                                    if self.hp >= bot.hp:
                                         move = True
                                     else:
                                         move = False
-                if not move:
-                    print "not move so guard"
-                    return ["guard"]
-                else:
-                    if not sanitize(r): print "not sanitize so guard"
-                    return sanitize(r) or ["guard"]
+                                elif prio > prio_o:
+                                    move = True
+                                else:
+                                    move = False
+            if not move:
+                return ["guard"]
+            else:
+                return sanitize(r) or ["guard"]
 
     def flee(self, game):
         #Make a priority list of the nearby tiles
         directions = ((1, 0), (0, -1), (-1, 0), (0, 1))
-        possible_dests = [eu.Vector2(*self.location) + eu.Vector2(*d) for d in directions]
+        possible_dests = [tuple(eu.Vector2(*self.location) + eu.Vector2(*d)) for d in directions]
         adj_enemy_hp = 0
         adj_ally_hp = 0 
         # Firstly, remove blocked desitnations
-        for loc, bot in game.get("robots").items():
-            for dest in possible_dests:
-                if bot.player_id == self.player_id:
-                    adj_ally_hp += max(bot.hp, SUICIDE_DAMAGE)
-                else:
-                    adj_enemy_hp += max(bot.hp, SUICIDE_DAMAGE)
+        for dest in possible_dests:
+            if "invalid" in rg.loc_types(dest):
+                possible_dests.remove(dest)
+            else:
+                for loc, bot in game.get("robots").items():        
+                    if bot.player_id == self.player_id:
+                        adj_ally_hp += max(bot.hp, SUICIDE_DAMAGE)
+                    else:
+                        adj_enemy_hp += max(bot.hp, SUICIDE_DAMAGE)
 
-                if dest == loc:
-                    possible_dests.remove(dest)
+                    if dest == loc:
+                        possible_dests.remove(dest)
 
         if not possible_dests: #We cant flee, lets make the best out of this
             if adj_enemy_hp > adj_ally_hp * 1.2:
                 return ["suicide"]
             else:
-                print "guard cuz bard"
                 return ["guard"]
         else:
             
@@ -115,8 +118,9 @@ class Robot:
                 #     points added depending on how close it is to center, being perfectly in the middle between center and outside is the best
                 for d in possible_dests:
                     prio_dests = []
+                    prio = 0
+
                     for adj in get_adjacent(d):
-                        prio = 0
                         if adj in game["robots"].keys(): #it is empty
                             bot = game["robots"][adj]
                             if bot.player_id != self.player_id:
@@ -124,7 +128,7 @@ class Robot:
                             else:
                                 prio += 2
                         else:
-                            if "obstacle" in rg.loc_types(adj): #This option isnt even possible so remove it
+                            if "invalid" in rg.loc_types(adj): #This option isnt even possible so remove it
                                 continue
                             if "spawn" in rg.loc_types(adj):
                                 to_spawn =  10 - (game["turn"] % 10)
@@ -135,17 +139,17 @@ class Robot:
                         dist = rg.wdist(adj, rg.CENTER_POINT)
                         prio += abs(IDEAL_FLEE - dist)
 
-                        prio_dests.append((d, prio))
+                    prio_dests.append((d, prio))
 
                     if prio_dests:
                         best = sorted(prio_dests, key = lambda x: x[1])
-                        return ["move", best[0][0]]
+                        return sanitize(["move", best[0][0]])
                     else:
                         return ["guard"] #temporary
 
 
             else:
-                return ["move", possible_dests[0]]
+                return sanitize(["move", possible_dests[0]])
 
     @staticmethod
     def move(bot, game):
@@ -184,14 +188,18 @@ class Robot:
             dest = (x + d[0], y + d[1])
             occupied = False
             for loc, nbot in game.get('robots').items():
-                if bot.hp >= CRITICAL_HP and nbot.hp <= CRITICAL_HP and nbot.get("location") == dest:
-                    occupied = True
-                    break
+                if bot.hp > CRITICAL_HP and nbot.hp <= CRITICAL_HP and nbot.get("location") == dest:
+                    continue
             if occupied: #if it is occupied by an ally, check for a less prioritized move, but if not, try moving anyway
                 result = ["move", dest]
                 continue
-            elif "spawn" in rg.loc_types(dest):
+            elif "spawn" in rg.loc_types(dest) or "invalid" in rg.loc_types(dest):
                 continue
+            elif bot.hp <= CRITICAL_HP:
+                x2 = dest[0] + d[0]
+                y2 = dest[1] + d[1] # Also check the tile after, so we go in the second row instead
+                if "spawn" in rg.loc_types((x2,y2)):
+                    continue
             else:
                 result = ["move", dest]
                 break
@@ -207,7 +215,8 @@ class Robot:
 
 def get_adjacent(location):
     directions = ((1, 0), (0, -1), (-1, 0), (0, 1))
-    return (tuple(eu.Vector2(*location) + eu.Vector2(*d)) for d in directions)
+    adj = (tuple(eu.Vector2(*location) + eu.Vector2(*d)) for d in directions)
+    return adj
 
 def sanitize(command):
     if len(command) == 2:
