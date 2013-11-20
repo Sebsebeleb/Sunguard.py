@@ -56,6 +56,7 @@ class Robot:
                         if rg.dist(loc, r[1]) <= 1:
                             if Robot.get_destination(bot, game) == r[1]: #our destination matches, let them come
                                 if bot.get("hp") < CRITICAL_HP:
+                                    print "Bot beneath crtitical so guard"
                                     return ["guard"]
                                 else: # Figure out who should be given highest movement priority (based on which one is furthest from middle, or who has lowest hp in tiebreaker)
                                     prio = rg.dist(self.location, rg.CENTER_POINT)
@@ -71,8 +72,10 @@ class Robot:
                                     else:
                                         move = False
                 if not move:
+                    print "not move so guard"
                     return ["guard"]
                 else:
+                    if not sanitize(r): print "not sanitize so guard"
                     return sanitize(r) or ["guard"]
 
     def flee(self, game):
@@ -96,6 +99,7 @@ class Robot:
             if adj_enemy_hp > adj_ally_hp * 1.2:
                 return ["suicide"]
             else:
+                print "guard cuz bard"
                 return ["guard"]
         else:
             
@@ -155,22 +159,22 @@ class Robot:
         
         if x <= 9 and y > 9: #lower left quadrant; moving right and down priority
             if bot.hp >= CRITICAL_HP:
-                prio = (DOWN, RIGHT)
+                prio = (DOWN, RIGHT, UP, LEFT)
             else:
                 prio = (LEFT, UP, RIGHT, DOWN)
         elif x > 9 and y >= 9: #lower right; right and up
             if bot.hp >= CRITICAL_HP:
-                prio = (RIGHT, UP)
+                prio = (RIGHT, UP, LEFT, DOWN)
             else:
                 prio = (DOWN, LEFT, UP, RIGHT)
         elif x > 9 and y <= 9: #upper right; up and left
             if bot.hp >= CRITICAL_HP:
-                prio = (UP, LEFT)
+                prio = (UP, LEFT, DOWN, RIGHT)
             else:
                 prio = (RIGHT, DOWN, LEFT, UP)
         elif x <= 9 and y <= 9: #upper left; left and down
             if bot.hp >= CRITICAL_HP:
-                prio = (LEFT, DOWN)
+                prio = (LEFT, DOWN, RIGHT, UP)
             else:
                 prio = (UP, RIGHT, DOWN, LEFT)
         else:
@@ -206,7 +210,7 @@ def get_adjacent(location):
     return (tuple(eu.Vector2(*location) + eu.Vector2(*d)) for d in directions)
 
 def sanitize(command):
-    if command[0] == "move":
-        return ["move",tuple(command[1])]
+    if len(command) == 2:
+        return [command[0], tuple(command[1])]
     else:
         return command
