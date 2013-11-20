@@ -45,7 +45,7 @@ class Robot:
                 return sanitize(self.flee(game))
             adjacent_enemies.sort(key= lambda x: (x[2], x[1].get("hp")))
             return sanitize(['attack', adjacent_enemies[0][0]])
-        elif adjacent_enemies and self.hp <= CRITICAL_HP:
+        elif adjacent_enemies and self.hp < CRITICAL_HP:
             return sanitize(self.flee(game))
         else:
             r = Robot.move(self, game)
@@ -188,18 +188,20 @@ class Robot:
             dest = (x + d[0], y + d[1])
             occupied = False
             for loc, nbot in game.get('robots').items():
-                if bot.hp > CRITICAL_HP and nbot.hp <= CRITICAL_HP and nbot.get("location") == dest:
+                if bot.hp >= CRITICAL_HP and nbot.hp < CRITICAL_HP and nbot.get("location") == dest:
                     continue
             if occupied: #if it is occupied by an ally, check for a less prioritized move, but if not, try moving anyway
                 result = ["move", dest]
                 continue
             elif "spawn" in rg.loc_types(dest) or "invalid" in rg.loc_types(dest):
                 continue
-            elif bot.hp <= CRITICAL_HP:
+            elif bot.hp < CRITICAL_HP:
                 x2 = dest[0] + d[0]
                 y2 = dest[1] + d[1] # Also check the tile after, so we go in the second row instead
                 if "spawn" in rg.loc_types((x2,y2)):
                     continue
+                else:
+                    result = ["move", dest]
             else:
                 result = ["move", dest]
                 break
