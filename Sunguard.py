@@ -127,17 +127,18 @@ class Robot:
                                 prio += 5
                             else:
                                 prio += 2
+                    
+                    if "invalid" in rg.loc_types(d): #This option isnt even possible so remove it
+                        continue
+                    if "spawn" in rg.loc_types(d):
+                        to_spawn =  10 - (game["turn"] % 10)
+                        if to_spawn == 1: #spawn next turn, avoid!
+                            prio += 99
                         else:
-                            if "invalid" in rg.loc_types(adj): #This option isnt even possible so remove it
-                                continue
-                            if "spawn" in rg.loc_types(adj):
-                                to_spawn =  10 - (game["turn"] % 10)
-                                if to_spawn == 1: #spawn next turn, avoid!
-                                    prio += 99
-                                else:
-                                    prio += to_spawn * 4
-                        dist = rg.wdist(adj, rg.CENTER_POINT)
-                        prio += abs(IDEAL_FLEE - dist)
+                            prio += to_spawn * 4
+
+                    dist = rg.wdist(d, rg.CENTER_POINT)
+                    prio += abs(IDEAL_FLEE - dist)
 
                     prio_dests.append((d, prio))
 
